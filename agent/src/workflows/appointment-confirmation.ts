@@ -350,15 +350,12 @@ export class AppointmentConfirmationWorkflow {
     console.log('🔍 Querying alternative appointment slots...');
 
     // Call FastAPI to get available slots
+    // Endpoint: GET /api/appointments/{appointment_id}/alternatives
     const response = await fetch(
-      `${this.env.BACKEND_API_URL}/api/appointments/alternatives`,
+      `${this.env.BACKEND_API_URL}/api/appointments/${this.state.appointmentId}/alternatives`,
       {
-        method: 'POST',
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          doctor_id: this.state.metadata.originalAppointment.doctorName, // TODO: Use actual doctorId
-          current_date: this.state.metadata.originalAppointment.dateTime,
-        }),
       }
     );
 
@@ -366,15 +363,25 @@ export class AppointmentConfirmationWorkflow {
       throw new Error(`Failed to fetch alternatives: ${response.statusText}`);
     }
 
-    const data = await response.json() as any;
-    const alternatives = (data.alternatives || data || []) as Array<{
-      dateTime: string;
-      slotId: string;
-    }>;
+    const data = await response.json() as {
+      appointment_id: number;
+      current_date: string;
+      alternatives: Array<{
+        slot_date: string; // ISO datetime from FastAPI
+        available: boolean;
+      }>;
+    };
+
+    // Convert to workflow format
+    const alternatives = data.alternatives.map((alt, index) => ({
+      dateTime: new Date(alt.slot_date).toISOString().replace('T', ' ').substring(0, 16),
+      slotId: `slot-${index + 1}`,
+    }));
 
     // Store alternatives in metadata
-    this.state.metadata.alternativesOffered = alternatives.slice(0, 2);
+    this.state.metadata.alternativesOffered = alternatives;
 
+    console.log(`✅ Found ${alternatives.length} alternative slots`);
     return { alternatives: this.state.metadata.alternativesOffered };
   }
 

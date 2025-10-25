@@ -9,5 +9,11 @@ TWILIO_ACCOUNT_SID=your_twilio_account_sid
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 
-# Optional: ElevenLabs for voice synthesis
+# ElevenLabs for voice synthesis (Phase 3)
 ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+
+# Backend API URL
+BACKEND_API_URL=http://localhost:8000
+
+# Optional: Staff phone for escalation alerts
+STAFF_PHONE_NUMBER=+5215512345678
