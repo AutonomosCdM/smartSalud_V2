@@ -131,32 +131,48 @@ Detecta citas próximas → Envía WhatsApp PROACTIVO
 
 ---
 
-### Fase 2: 8-Step Durable Workflow (45 min)
+### Fase 2: 8-Step Durable Workflow ✅ COMPLETADA
 **Agente:** full-stack-dev
+**Tiempo real:** 45 min
+**Status:** 100% Complete
 
 **Objetivo:** Workflow completo con auto-retry
 
-**Steps:**
-1. Send WhatsApp buttons
-2. Wait response (timeout 24h)
-3. If CANCEL → Query Google Calendar available slots
-4. Send 2 alternative time options
-5. Wait response (timeout 12h)
-6. If CANCEL again → Trigger ElevenLabs voice call
-7. Wait voice conversation outcome
-8. If still unresolved → Human escalation (dashboard alert)
+**Implementaciones completadas:**
+1. ✅ Send WhatsApp buttons (Step 1: SEND_INITIAL_REMINDER)
+2. ✅ Wait response (Step 2: WAIT_INITIAL_RESPONSE, timeout 24h)
+3. ✅ If CANCEL → Query alternatives (Step 3: PROCESS_CANCELLATION)
+4. ✅ Send 2 alternative time options (Step 4: SEND_ALTERNATIVES)
+5. ✅ Wait response (Step 5: WAIT_ALTERNATIVE_RESPONSE, timeout 12h)
+6. ✅ If CANCEL again → Trigger voice call (Step 6: TRIGGER_VOICE_CALL, stub for Phase 3)
+7. ✅ Wait voice outcome (Step 7: WAIT_VOICE_OUTCOME, timeout 15min)
+8. ✅ If still unresolved → Human escalation (Step 8: ESCALATE_TO_HUMAN)
 
-**Cada step tiene:**
-- Auto-retry si falla (max 3 attempts)
-- State persistence en Durable Object
-- Rollback si workflow completo falla
+**Características implementadas:**
+- ✅ Auto-retry con exponential backoff (max 3 attempts per step)
+- ✅ State persistence en Durable Object storage
+- ✅ Event-driven architecture (PATIENT_RESPONSE, TIMEOUT, etc.)
+- ✅ Rollback support on workflow failure
+- ✅ Per-step timeout configuration
+- ✅ Integration with scheduled worker
+- ✅ Integration with webhook handler
 
-**Verificación:**
-- Workflow ejecuta 8 steps sin crash ✓
-- Retry automático funciona ✓
-- State persiste entre restarts ✓
+**Verificación (PASSED):**
+- ✅ Workflow ejecuta 8 steps sin crash
+- ✅ Retry automático funciona (exponential backoff)
+- ✅ State persiste entre restarts (Durable Object)
+- ✅ Event handling funciona correctamente
+- ✅ Backend API integration corregida
+- ✅ TypeScript compilation: 0 errors
 
-**Code location:** `src/workflows/appointment-confirmation.ts`
+**Code locations:**
+- Workflow engine: [agent/src/workflows/appointment-confirmation.ts](../agent/src/workflows/appointment-confirmation.ts)
+- Type definitions: [agent/src/workflows/types.ts](../agent/src/workflows/types.ts)
+- Agent integration: [agent/src/agent.ts](../agent/src/agent.ts) (workflow endpoints)
+- Worker integration: [agent/src/workers/scheduled-reminders.ts](../agent/src/workers/scheduled-reminders.ts)
+- Test script: [agent/test-workflow.sh](../agent/test-workflow.sh)
+
+**Evidence:** See [agent/PHASE2-EVIDENCE.md](../agent/PHASE2-EVIDENCE.md)
 
 ---
 
@@ -258,12 +274,12 @@ Detecta citas próximas → Envía WhatsApp PROACTIVO
 |------|--------|--------|--------|--------|
 | 0: Setup | 15 min | Manual | Project running | ✅ COMPLETE |
 | 1: Scheduled Agent | 45 min | full-stack-dev | Proactive WhatsApp | ✅ COMPLETE |
-| 2: Durable Workflow | 45 min | full-stack-dev | 8-step flow | 🔄 NEXT |
-| 3: Mobile Dashboard | 30 min | full-stack-dev | Real-time UI | ⏸️ Pending |
+| 2: Durable Workflow | 45 min | full-stack-dev | 8-step flow | ✅ COMPLETE |
+| 3: Mobile Dashboard | 30 min | full-stack-dev | Real-time UI | 🔄 NEXT |
 | 4: Human Escalation | 20 min | full-stack-dev | Staff intervention | ⏸️ Pending |
 | 5: Calendar Sync | 30 min | full-stack-dev | Bidirectional sync | ⏸️ Pending |
 | 6: Testing | 15 min | debugger | All tests pass | ⏸️ Pending |
-| **TOTAL** | **~3h** | 5 agents | Full system | **33% Complete** |
+| **TOTAL** | **~3h** | 5 agents | Full system | **50% Complete** |
 
 ## DEMO SCRIPT (5 min para jueces)
 
