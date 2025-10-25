@@ -498,6 +498,7 @@ export class AppointmentConfirmationWorkflow {
    * Phase 5: Sync appointment to Google Calendar
    */
   private async syncToCalendar(action: 'CONFIRMED' | 'RESCHEDULED' | 'CANCELLED'): Promise<void> {
+    console.log(`📅 [Calendar] Starting sync - Action: ${action}`);
     try {
       const { createCalendarSync } = await import('../integrations/google-calendar-sync');
       const calendarSync = createCalendarSync(this.env);
@@ -507,7 +508,13 @@ export class AppointmentConfirmationWorkflow {
         return;
       }
 
+      console.log(`📅 [Calendar] Sync initialized successfully`);
       const appointment = this.state.metadata.originalAppointment;
+      console.log(`📅 [Calendar] Appointment data:`, {
+        id: this.state.appointmentId,
+        patient: appointment.patient_name,
+        scheduled: appointment.scheduled_time,
+      });
 
       switch (action) {
         case 'CONFIRMED':

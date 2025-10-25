@@ -106,6 +106,8 @@ export class GoogleCalendarSync {
       console.error('[GoogleCalendar] Error creating event:', {
         appointmentId: appointment.id,
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        errorDetails: JSON.stringify(error, null, 2),
       });
       return null;
     }
