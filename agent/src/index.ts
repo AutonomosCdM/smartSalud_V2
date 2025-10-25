@@ -38,6 +38,17 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    // Handle CORS preflight requests
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      });
+    }
+
     // Root endpoint - Welcome page
     if (url.pathname === '/') {
       const html = `
@@ -131,6 +142,130 @@ export default {
           'Access-Control-Allow-Origin': '*'
         }
       });
+    }
+
+    // API: Get conversation history for appointment
+    if (url.pathname.match(/^\/api\/appointments\/(.+)\/conversations$/) && request.method === 'GET') {
+      const appointmentId = url.pathname.split('/')[3];
+
+      try {
+        const { results } = await env.DB.prepare(
+          'SELECT * FROM conversations WHERE appointment_id = ? ORDER BY timestamp ASC'
+        ).bind(appointmentId).all();
+
+        console.log('[API] Fetched conversations:', {
+          appointmentId,
+          count: results?.length || 0,
+          timestamp: new Date().toISOString()
+        });
+
+        return new Response(JSON.stringify(results || []), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      } catch (error) {
+        console.error('[API] Error fetching conversations:', {
+          appointmentId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        });
+
+        return new Response(JSON.stringify({
+          error: 'Internal server error',
+          message: 'Failed to fetch conversations'
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+    }
+
+    // API: Resolve escalation (manual intervention)
+    if (url.pathname.match(/^\/api\/appointments\/(.+)\/resolve$/) && request.method === 'POST') {
+      const appointmentId = url.pathname.split('/')[3];
+
+      try {
+        const body = await request.json() as { action: 'call' | 'offer_slot' | 'not_interested'; notes?: string };
+
+        // Validate action
+        const validActions = ['call', 'offer_slot', 'not_interested'];
+        if (!body.action || !validActions.includes(body.action)) {
+          console.error('[API] Invalid action:', { appointmentId, action: body.action });
+          return new Response(JSON.stringify({ error: 'Invalid action' }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*'
+            }
+          });
+        }
+
+        // Sanitize notes (max 500 chars, remove dangerous characters)
+        const sanitizedNotes = body.notes
+          ? body.notes.replace(/[<>]/g, '').replace(/javascript:/gi, '').slice(0, 500).trim()
+          : '';
+
+        // Update appointment status
+        let newStatus = 'RESOLVED';
+        if (body.action === 'not_interested') newStatus = 'CANCELLED';
+
+        const updateResult = await env.DB.prepare(
+          'UPDATE appointments SET status = ?, outcome = ?, updated_at = ? WHERE id = ?'
+        ).bind(newStatus, body.action, Math.floor(Date.now() / 1000), appointmentId).run();
+
+        if (!updateResult.success) {
+          console.error('[API] Failed to update appointment:', { appointmentId, error: updateResult.error });
+          throw new Error('Database update failed');
+        }
+
+        // Log resolution
+        await env.DB.prepare(
+          'INSERT INTO conversations (id, patient_phone, appointment_id, direction, message_body, timestamp) VALUES (?, (SELECT patient_phone FROM appointments WHERE id = ?), ?, ?, ?, ?)'
+        ).bind(
+          `RESOLUTION-${Date.now()}`,
+          appointmentId,
+          appointmentId,
+          'system',
+          `Manual intervention: ${body.action}${sanitizedNotes ? ` - ${sanitizedNotes}` : ''}`,
+          Math.floor(Date.now() / 1000)
+        ).run();
+
+        console.log('[API] Resolution successful:', {
+          appointmentId,
+          action: body.action,
+          status: newStatus,
+          timestamp: new Date().toISOString()
+        });
+
+        return new Response(JSON.stringify({ success: true, action: body.action, status: newStatus }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      } catch (error) {
+        console.error('[API] Error resolving appointment:', {
+          appointmentId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        });
+
+        return new Response(JSON.stringify({
+          error: 'Internal server error',
+          message: error instanceof Error ? error.message : 'Unknown error'
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
     }
 
     // WhatsApp webhook handler (Twilio)

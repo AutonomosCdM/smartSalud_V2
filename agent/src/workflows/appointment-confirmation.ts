@@ -292,6 +292,9 @@ export class AppointmentConfirmationWorkflow {
           this.state.status = 'COMPLETED';
           this.state.metadata.completedAt = new Date();
           console.log('✅ Patient confirmed appointment - workflow completing early');
+
+          // Sync to Google Calendar (Phase 5)
+          await this.syncToCalendar('CONFIRMED');
         } else if (intent === 'cancel') {
           // Patient cancelled - continue to alternatives flow
           console.log('🔄 Patient cancelled - proceeding to alternatives');
@@ -491,9 +494,73 @@ export class AppointmentConfirmationWorkflow {
     return this.state.outcome;
   }
 
+  /**
+   * Phase 5: Sync appointment to Google Calendar
+   */
+  private async syncToCalendar(action: 'CONFIRMED' | 'RESCHEDULED' | 'CANCELLED'): Promise<void> {
+    try {
+      const { createCalendarSync } = await import('../integrations/google-calendar-sync');
+      const calendarSync = createCalendarSync(this.env);
+
+      if (!calendarSync) {
+        console.warn('[Calendar] Sync disabled (no credentials configured)');
+        return;
+      }
+
+      const appointment = this.state.metadata.originalAppointment;
+
+      switch (action) {
+        case 'CONFIRMED':
+          const eventId = await calendarSync.createAppointmentEvent({
+            id: this.state.appointmentId,
+            patient_name: appointment.patient_name || 'Paciente',
+            patient_phone: this.state.patientPhone,
+            doctor_name: appointment.doctor_name || 'Doctor',
+            specialty: appointment.specialty || 'Consulta',
+            scheduled_time: appointment.scheduled_time,
+            duration_minutes: appointment.duration_minutes || 30,
+            status: 'CONFIRMED',
+          });
+
+          if (eventId) {
+            this.state.metadata.calendarEventId = eventId;
+            console.log(`📅 [Calendar] Event created: ${eventId}`);
+          }
+          break;
+
+        case 'RESCHEDULED':
+          if (this.state.metadata.calendarEventId) {
+            await calendarSync.updateAppointmentEvent(
+              this.state.metadata.calendarEventId,
+              appointment.scheduled_time,
+              appointment.duration_minutes || 30
+            );
+            console.log(`📅 [Calendar] Event updated: ${this.state.metadata.calendarEventId}`);
+          }
+          break;
+
+        case 'CANCELLED':
+          if (this.state.metadata.calendarEventId) {
+            await calendarSync.cancelAppointmentEvent(this.state.metadata.calendarEventId);
+            console.log(`📅 [Calendar] Event cancelled: ${this.state.metadata.calendarEventId}`);
+          }
+          break;
+      }
+
+      await this.persistState();
+    } catch (error) {
+      console.error('[Calendar] Sync error:', error instanceof Error ? error.message : 'Unknown error');
+      // Don't fail workflow if calendar sync fails
+    }
+  }
+
   async cancel(): Promise<void> {
     console.log(`🛑 Cancelling workflow: ${this.state.workflowId}`);
     this.state.status = 'CANCELLED';
+
+    // Sync cancellation to Calendar
+    await this.syncToCalendar('CANCELLED');
+
     await this.persistState();
   }
 }

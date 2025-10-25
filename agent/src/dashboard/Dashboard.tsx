@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { EscalationModal } from './components/EscalationModal'
 
 const AGENT_API = import.meta.env.VITE_AGENT_API || 'http://localhost:8787'
 
@@ -35,6 +36,7 @@ export function Dashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [escalationModal, setEscalationModal] = useState<{ id: string; name: string } | null>(null)
 
   // Stats calculadas de las citas
   const stats = {
@@ -201,16 +203,26 @@ export function Dashboard() {
                         {apt.patient_phone}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-medium">
-                        {new Date(apt.appointment_date).toLocaleDateString('es-CL')}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(apt.appointment_date).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      <span className={`inline-block mt-1 rounded-full px-2 py-1 text-xs ${getStatusColor(apt.status)}`}>
-                        {translateStatus(apt.status)}
-                      </span>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="font-medium">
+                          {new Date(apt.appointment_date).toLocaleDateString('es-CL')}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(apt.appointment_date).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <span className={`inline-block mt-1 rounded-full px-2 py-1 text-xs ${getStatusColor(apt.status)}`}>
+                          {translateStatus(apt.status)}
+                        </span>
+                      </div>
+                      {apt.status === 'NEEDS_HUMAN_INTERVENTION' && (
+                        <button
+                          onClick={() => setEscalationModal({ id: apt.id, name: apt.patient_name })}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap"
+                        >
+                          👤 Intervenir
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -223,6 +235,18 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Escalation Modal */}
+      {escalationModal && (
+        <EscalationModal
+          appointmentId={escalationModal.id}
+          patientName={escalationModal.name}
+          onClose={() => {
+            setEscalationModal(null)
+            fetchAppointments() // Refresh appointments after resolution
+          }}
+        />
+      )}
     </div>
   )
 }
