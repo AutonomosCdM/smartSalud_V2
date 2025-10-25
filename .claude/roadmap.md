@@ -176,27 +176,45 @@ Detecta citas próximas → Envía WhatsApp PROACTIVO
 
 ---
 
-### Fase 3: Mobile Dashboard + Voice Button (30 min)
+### Fase 3: Dashboard de Monitoreo + Interfaz de Voz (30 min)
 **Agente:** full-stack-dev
 
-**Objetivo:** Dashboard móvil con updates real-time y botón de voz
+**Objetivo:** Dashboard desktop para staff CESFAM + Interfaz de voz web para pacientes
 
-**Features:**
-- Mobile-first UI (NO desktop view)
-- WebSocket connection para updates
+**DOS INTERFACES SEPARADAS:**
+
+**1. Dashboard de Staff (Desktop - CESFAM)**
+- Vista de escritorio (desktop, NO móvil)
+- WebSocket connection para updates real-time
 - Lista de citas con status visual:
   - 🟢 Confirmado
   - 🟡 Esperando respuesta
-  - 🔴 Requiere atención humana
-- Botón [🎤 Llamar con voz] → ElevenLabs agent
-- Voice narration cuando llegan confirmaciones
+  - 🟠 En proceso de voz
+  - 🔴 Requiere intervención humana
+- Botón manual para iniciar llamada de voz a paciente
+- Alertas visuales/sonoras cuando llega 🔴
+- Ver conversación completa por paciente
+- **NO guarda historial en dashboard** - va directo a DB al terminar
+
+**2. Interfaz de Voz para Pacientes (WhatsApp Web View)**
+- Link enviado por WhatsApp cuando paciente cancela 2x
+- ElevenLabs Conversational AI Widget embebido
+- UI simple: botón de micrófono + transcript
+- Paciente habla directamente con agente
+- Al finalizar: outcome se reporta a workflow
+- Historial guardado en DB automáticamente
 
 **Verificación:**
-- Dashboard carga en móvil ✓
+- Dashboard desktop carga correctamente ✓
 - WebSocket actualiza en tiempo real ✓
-- Botón de voz conecta con ElevenLabs ✓
+- Link de voz funciona desde WhatsApp ✓
+- ElevenLabs agent responde correctamente ✓
+- Historial se guarda en DB al finalizar ✓
 
-**Code location:** `src/dashboard/mobile-view.tsx`
+**Code locations:**
+- `src/dashboard/staff-view.tsx` - Dashboard CESFAM
+- `src/dashboard/websocket-server.ts` - WebSocket server
+- `src/voice-interface/patient-view.tsx` - Interfaz voz pacientes
 
 ---
 
@@ -275,11 +293,11 @@ Detecta citas próximas → Envía WhatsApp PROACTIVO
 | 0: Setup | 15 min | Manual | Project running | ✅ COMPLETE |
 | 1: Scheduled Agent | 45 min | full-stack-dev | Proactive WhatsApp | ✅ COMPLETE |
 | 2: Durable Workflow | 45 min | full-stack-dev | 8-step flow | ✅ COMPLETE |
-| 3: Mobile Dashboard | 30 min | full-stack-dev | Real-time UI | 🔄 NEXT |
-| 4: Human Escalation | 20 min | full-stack-dev | Staff intervention | ⏸️ Pending |
+| 3: Desktop Dashboard + Voice | 40 min | full-stack-dev | Real-time UI + Voice interface | ✅ COMPLETE |
+| 4: Human Escalation | 20 min | full-stack-dev | Staff intervention | 🔄 NEXT |
 | 5: Calendar Sync | 30 min | full-stack-dev | Bidirectional sync | ⏸️ Pending |
 | 6: Testing | 15 min | debugger | All tests pass | ⏸️ Pending |
-| **TOTAL** | **~3h** | 5 agents | Full system | **50% Complete** |
+| **TOTAL** | **~3h** | 5 agents | Full system | **~63% Complete** |
 
 ## DEMO SCRIPT (5 min para jueces)
 

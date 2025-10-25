@@ -1,0 +1,314 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useWebSocket } from './hooks/useWebSocket';
+import { AppointmentCard, Appointment } from './components/AppointmentCard';
+import { EscalationAlert } from './components/EscalationAlert';
+
+const AGENT_API = import.meta.env.VITE_AGENT_API || 'http://localhost:8787';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8787/dashboard/ws';
+
+export function Dashboard() {
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<string | null>(null);
+
+  const { connected, lastMessage, send} = useWebSocket(WS_URL, {
+    onConnect: () => {
+      console.log('[Dashboard] WebSocket connected');
+    },
+    onDisconnect: () => {
+      console.log('[Dashboard] WebSocket disconnected');
+    },
+  });
+
+  // Fetch appointments from Cloudflare Agent (D1)
+  const fetchAppointments = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${AGENT_API}/api/appointments?hours=48`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Map backend data to Appointment interface
+      const mappedAppointments: Appointment[] = data.map((apt: any) => ({
+        id: apt.id,
+        patientName: apt.patient_name,
+        patientPhone: apt.patient_phone,
+        doctorName: apt.doctor_name,
+        specialty: apt.specialty,
+        dateTime: apt.appointment_date,
+        status: mapBackendStatus(apt.status),
+        workflow: apt.workflow_id ? {
+          workflowId: apt.workflow_id,
+          status: apt.workflow_status || 'PENDING',
+          currentStep: apt.current_step || 'SEND_INITIAL_REMINDER',
+          outcome: apt.outcome,
+          metadata: apt.metadata,
+        } : undefined,
+      }));
+
+      setAppointments(mappedAppointments);
+      setError(null);
+    } catch (err) {
+      console.error('[Dashboard] Failed to fetch appointments:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch appointments');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Map backend status to AppointmentStatus
+  const mapBackendStatus = (backendStatus: string): Appointment['status'] => {
+    switch (backendStatus) {
+      case 'CONFIRMED':
+        return 'CONFIRMED';
+      case 'CANCELLED':
+        return 'CANCELLED';
+      case 'PENDING':
+      case 'WAITING':
+        return 'WAITING';
+      case 'VOICE_ACTIVE':
+        return 'VOICE_ACTIVE';
+      case 'ESCALATED':
+      case 'NEEDS_HUMAN':
+        return 'NEEDS_HUMAN';
+      default:
+        return 'PROCESSING';
+    }
+  };
+
+  // Handle WebSocket real-time updates
+  useEffect(() => {
+    if (!lastMessage) return;
+
+    console.log('[Dashboard] WebSocket message:', lastMessage.type);
+
+    switch (lastMessage.type) {
+      case 'WORKFLOW_UPDATE':
+        handleWorkflowUpdate(lastMessage.data);
+        break;
+
+      case 'APPOINTMENT_UPDATED':
+        handleAppointmentUpdate(lastMessage.data);
+        break;
+
+      case 'ESCALATION_ALERT':
+        handleEscalationAlert(lastMessage.data);
+        break;
+
+      case 'VOICE_CALL_STARTED':
+        handleVoiceCallStarted(lastMessage.data);
+        break;
+
+      default:
+        console.log('[Dashboard] Unknown message type:', lastMessage.type);
+    }
+  }, [lastMessage]);
+
+  const handleWorkflowUpdate = (data: any) => {
+    setAppointments((prev) =>
+      prev.map((apt) => {
+        if (apt.id === data.appointmentId || apt.workflow?.workflowId === data.workflowId) {
+          return {
+            ...apt,
+            workflow: {
+              ...apt.workflow,
+              workflowId: data.workflowId,
+              status: data.status,
+              currentStep: data.currentStep,
+              outcome: data.outcome,
+              metadata: data.metadata,
+            },
+            status: mapWorkflowStatus(data.status, data.currentStep, data.outcome),
+          };
+        }
+        return apt;
+      })
+    );
+  };
+
+  const handleAppointmentUpdate = (data: any) => {
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === data.appointmentId
+          ? { ...apt, ...data, status: mapBackendStatus(data.status) }
+          : apt
+      )
+    );
+  };
+
+  const handleEscalationAlert = (data: any) => {
+    console.log('[Dashboard] Escalation alert:', data);
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === data.appointmentId
+          ? { ...apt, status: 'NEEDS_HUMAN' }
+          : apt
+      )
+    );
+  };
+
+  const handleVoiceCallStarted = (data: any) => {
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === data.appointmentId
+          ? { ...apt, status: 'VOICE_ACTIVE' }
+          : apt
+      )
+    );
+  };
+
+  const mapWorkflowStatus = (
+    workflowStatus: string,
+    currentStep: string,
+    outcome?: string
+  ): Appointment['status'] => {
+    if (outcome === 'CONFIRMED') return 'CONFIRMED';
+    if (outcome === 'CANCELLED') return 'CANCELLED';
+    if (outcome === 'ESCALATED_TO_HUMAN') return 'NEEDS_HUMAN';
+
+    if (currentStep === 'WAIT_VOICE_OUTCOME') return 'VOICE_ACTIVE';
+    if (workflowStatus === 'WAITING') return 'WAITING';
+    if (workflowStatus === 'RUNNING') return 'PROCESSING';
+
+    return 'WAITING';
+  };
+
+  // Manual voice call trigger
+  const handleManualCall = async (appointmentId: string) => {
+    try {
+      const response = await fetch(`/agent/workflow/${appointmentId}/trigger-voice`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to trigger voice call');
+      }
+
+      const data = await response.json();
+      alert(`Enlace de voz enviado al paciente:\n${data.voiceLink}`);
+
+      // Update local state
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === appointmentId
+            ? { ...apt, status: 'VOICE_ACTIVE' }
+            : apt
+        )
+      );
+    } catch (err) {
+      console.error('[Dashboard] Failed to trigger voice call:', err);
+      alert('Error al enviar enlace de voz');
+    }
+  };
+
+  const handleIntervene = (appointmentId: string) => {
+    setSelectedAppointment(appointmentId);
+    // TODO: Open intervention modal (Phase 4)
+    alert(`Intervención manual para cita ${appointmentId} (Phase 4)`);
+  };
+
+  const handleViewHistory = async (appointmentId: string) => {
+    // TODO: Fetch and display conversation history from DB
+    alert(`Ver historial de cita ${appointmentId} (Phase 4)`);
+  };
+
+  const handleResolveEscalation = (appointmentId: string) => {
+    setSelectedAppointment(appointmentId);
+    handleIntervene(appointmentId);
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchAppointments();
+
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchAppointments, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAppointments]);
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-white shadow-md sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                🏥 smartSalud - Panel CESFAM
+              </h1>
+              <p className="text-sm text-gray-600">Monitoreo de citas en tiempo real</p>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Connection Status */}
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    connected ? 'bg-green-500' : 'bg-red-500'
+                  } ${connected ? 'animate-pulse' : ''}`}
+                />
+                <span className="text-sm text-gray-700">
+                  {connected ? 'Conectado' : 'Desconectado'}
+                </span>
+              </div>
+
+              {/* Refresh Button */}
+              <button
+                onClick={fetchAppointments}
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
+              >
+                {loading ? '⟳ Actualizando...' : '🔄 Actualizar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            <strong className="font-bold">Error: </strong>
+            <span>{error}</span>
+          </div>
+        )}
+
+        {loading && appointments.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+            <p className="mt-4 text-gray-600">Cargando citas...</p>
+          </div>
+        ) : appointments.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600 text-lg">No hay citas próximas en las próximas 48 horas</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {appointments.map((appointment) => (
+              <AppointmentCard
+                key={appointment.id}
+                appointment={appointment}
+                onManualCall={() => handleManualCall(appointment.id)}
+                onIntervene={() => handleIntervene(appointment.id)}
+                onViewHistory={() => handleViewHistory(appointment.id)}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* Escalation Alert (Fixed Position) */}
+      <EscalationAlert
+        appointments={appointments}
+        onResolve={handleResolveEscalation}
+        onView={handleViewHistory}
+      />
+    </div>
+  );
+}

@@ -294,12 +294,19 @@ agent/
 - [ ] Calendar integration (Google Calendar API)
 - [ ] Voice call escalation (Twilio Voice)
 
-### Phase 3: Real-time Dashboard
+### Phase 3: Dashboard + Voice Interface
 
+**Staff Dashboard (Desktop):**
 - [ ] WebSocket broadcasting from agent
 - [ ] Live appointment status updates
-- [ ] ElevenLabs voice narration
-- [ ] Metrics dashboard (Grafana/Cloudflare Analytics)
+- [ ] Desktop monitoring UI (React)
+- [ ] Conversation history viewer
+
+**Patient Voice Interface:**
+- [ ] ElevenLabs Conversational AI widget
+- [ ] Voice call link generation
+- [ ] Outcome reporting to workflow
+- [ ] DB persistence of conversations
 
 ### Phase 4: Human-in-the-Loop
 

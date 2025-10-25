@@ -111,6 +111,88 @@ export class SmartSaludAgent extends DurableObject {
       });
     }
 
+    // Voice outcome endpoint - receives outcome from patient voice interface
+    if (path.startsWith('/workflow/') && path.endsWith('/voice-outcome') && request.method === 'POST') {
+      const workflowId = path.split('/')[2];
+      const body = await request.json() as {
+        outcome: 'rescheduled' | 'cancelled' | 'timeout';
+        selectedAlternative?: any;
+        transcript?: string;
+        duration?: number;
+      };
+
+      const workflow = await AppointmentConfirmationWorkflow.load(this.ctx.storage, this.env);
+      if (!workflow || workflow.getWorkflowId() !== workflowId) {
+        return new Response(JSON.stringify({ error: 'Workflow not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Send voice outcome event to workflow
+      const event: WorkflowEvent = {
+        type: 'VOICE_OUTCOME',
+        payload: body,
+        timestamp: new Date()
+      };
+
+      await workflow.handleEvent(event);
+
+      return new Response(JSON.stringify({
+        success: true,
+        workflowId,
+        outcome: body.outcome
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Trigger voice call endpoint - manually trigger voice call for an appointment
+    if (path.match(/^\/workflow\/[^/]+\/trigger-voice$/) && request.method === 'POST') {
+      const appointmentId = path.split('/')[2];
+
+      const workflow = await AppointmentConfirmationWorkflow.load(this.ctx.storage, this.env);
+      if (!workflow) {
+        return new Response(JSON.stringify({ error: 'No active workflow' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const state = workflow.getState();
+      const alternatives = state.metadata?.alternativesOffered || [];
+
+      // Generate voice interface link
+      const baseUrl = new URL(request.url).origin;
+      const voiceLink = `${baseUrl}/voice?wfId=${state.workflowId}&aptId=${appointmentId}&alts=${encodeURIComponent(JSON.stringify(alternatives))}`;
+
+      // Send WhatsApp message with voice link
+      const twilioService = await import('./integrations/twilio-whatsapp');
+      await twilioService.sendMessage(
+        this.env,
+        state.patientPhone,
+        `Hola, por favor usa este enlace para reagendar tu cita con nuestro asistente de voz:\n\n${voiceLink}\n\n🏥 smartSalud`
+      );
+
+      // Broadcast voice call started
+      const { BroadcastService } = await import('./lib/broadcast');
+      const broadcaster = new BroadcastService(this.env);
+      await broadcaster.broadcastVoiceCallStarted({
+        appointmentId,
+        workflowId: state.workflowId,
+        voiceLink
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        voiceLink,
+        sent: true,
+        appointmentId
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     return new Response(JSON.stringify({
       error: 'Method not allowed',
       path: path,

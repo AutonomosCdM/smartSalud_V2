@@ -11,18 +11,31 @@ crons = ["0 * * * *"]
 [ai]
 binding = "AI"
 
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "smartsalud-db"
+database_id = "5904e3c5-0c28-4f64-b14c-e2d0ca19db4a"
+
 # Durable Objects
 [[durable_objects.bindings]]
 name = "AGENT"
 class_name = "SmartSaludAgent"
 
+[[durable_objects.bindings]]
+name = "BROADCASTER"
+class_name = "DashboardBroadcaster"
+
 [[migrations]]
 tag = "v1"
-new_classes = ["SmartSaludAgent"]
+new_sqlite_classes = ["SmartSaludAgent"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["DashboardBroadcaster"]
 
 # Environment variables (non-secret)
 [vars]
-BACKEND_API_URL = "https://smartsalud-api.railway.app"
 ENVIRONMENT = "production"
 
 # Secrets (set via: wrangler secret put <KEY_NAME>)
@@ -30,13 +43,3 @@ ENVIRONMENT = "production"
 # TWILIO_ACCOUNT_SID - for WhatsApp messaging
 # TWILIO_AUTH_TOKEN - for Twilio auth
 # TWILIO_WHATSAPP_NUMBER - format: whatsapp:+14155238886
-
-# Staging environment
-[env.staging]
-name = "smartsalud-agent-staging"
-vars = { BACKEND_API_URL = "https://smartsalud-staging.railway.app", ENVIRONMENT = "staging" }
-
-# Development environment
-[env.dev]
-name = "smartsalud-agent-dev"
-vars = { BACKEND_API_URL = "http://localhost:8000", ENVIRONMENT = "development" }

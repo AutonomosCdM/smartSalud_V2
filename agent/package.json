@@ -5,21 +5,40 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev:dashboard": "vite",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:dashboard\"",
+    "build:dashboard": "vite build",
+    "deploy": "npm run build:dashboard && wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "lint": "eslint src/"
   },
   "dependencies": {
+    "@11ty/eleventy-plugin-syntaxhighlight": "^5.0.2",
     "agents": "latest",
     "groq-sdk": "^0.34.0",
-    "twilio": "^5.10.3"
+    "lucide-react": "^0.548.0",
+    "react-use": "^17.5.3",
+    "twilio": "^5.10.3",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
+    "@tailwindcss/postcss": "^4.1.16",
     "@types/node": "^20.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-react": "^5.1.0",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.5.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.16",
     "typescript": "^5.3.3",
+    "vite": "^7.1.12",
     "vitest": "^1.0.0",
     "wrangler": "^3.90.0"
   },
