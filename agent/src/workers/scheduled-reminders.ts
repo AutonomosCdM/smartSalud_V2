@@ -12,6 +12,7 @@ export interface UpcomingAppointment {
   patient_id: string;
   patient_name: string;
   patient_phone: string;
+  doctor_id: string;
   doctor_name: string;
   specialty: string;
   appointment_date: string; // ISO 8601 format
@@ -130,6 +131,7 @@ async function fetchUpcomingAppointments(env: any): Promise<UpcomingAppointment[
 
 /**
  * Send WhatsApp reminder for a single appointment
+ * Phase 2: Now triggers durable workflow instead of just sending message
  */
 async function sendReminderForAppointment(
   appointment: UpcomingAppointment,
@@ -140,23 +142,43 @@ async function sendReminderForAppointment(
   const appointmentDate = formatDate(appointment.appointment_date);
   const appointmentTime = appointment.appointment_time;
 
-  // Send WhatsApp message with buttons
-  const sendResult = await twilioService.sendAppointmentReminder(
-    appointment.patient_phone,
-    {
-      doctorName: appointment.doctor_name,
-      date: appointmentDate,
-      time: appointmentTime,
-      specialty: appointment.specialty,
-    }
+  // PHASE 2: Start durable workflow via agent
+  // Get Durable Object stub for this patient's phone number
+  const agentId = env.AGENT.idFromName(appointment.patient_phone);
+  const agentStub = env.AGENT.get(agentId);
+
+  // Start workflow
+  const appointmentDetails = {
+    doctorName: appointment.doctor_name,
+    doctorId: appointment.doctor_id,
+    date: appointmentDate,
+    time: appointmentTime,
+    dateTime: `${appointmentDate} ${appointmentTime}`,
+    specialty: appointment.specialty,
+    patientId: appointment.patient_id,
+  };
+
+  const workflowResponse = await agentStub.fetch(
+    new Request('https://agent/workflow/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        appointmentId: appointment.id,
+        patientPhone: appointment.patient_phone,
+        appointmentDetails,
+      }),
+    })
   );
 
-  if (!sendResult.success) {
-    throw new Error(sendResult.error || 'Failed to send WhatsApp message');
+  if (!workflowResponse.ok) {
+    throw new Error(`Failed to start workflow: ${workflowResponse.statusText}`);
   }
 
-  // Store reminder sent status in backend
-  await markReminderSent(appointment.id, sendResult.messageSid!, env);
+  const workflowResult = await workflowResponse.json();
+  console.log(`🚀 Workflow started: ${workflowResult.workflowId}`);
+
+  // Store workflow ID in backend
+  await markReminderSent(appointment.id, workflowResult.workflowId, env);
 
   console.log(
     `📱 Reminder sent to ${appointment.patient_name} (${appointment.patient_phone})`
