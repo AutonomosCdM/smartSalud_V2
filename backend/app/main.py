@@ -9,6 +9,10 @@ from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
+from sqlalchemy import text
+
+from app.database import engine, get_db
+from app.routers import appointments
 
 app = FastAPI(
     title="smartSalud API",
@@ -16,14 +20,23 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# CORS configuration
+# CORS configuration - Allow Cloudflare Workers and local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict in production
+    allow_origins=[
+        "*",  # TODO: Restrict in production to specific domains
+        "https://*.workers.dev",
+        "http://localhost:3000",
+        "http://localhost:8000"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
+
+# Include routers
+app.include_router(appointments.router)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
@@ -31,14 +44,22 @@ async def health_check():
     """
     Health check endpoint for monitoring and load balancers.
     """
+    # Check database connection
+    db_status = "healthy"
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as e:
+        db_status = f"unhealthy: {str(e)}"
+
     return JSONResponse({
-        "status": "healthy",
+        "status": "healthy" if db_status == "healthy" else "degraded",
         "version": "0.1.0",
         "timestamp": datetime.utcnow().isoformat(),
         "services": {
-            "database": "pending",  # TODO: Check DB connection
-            "google_calendar": "pending",  # TODO: Check Calendar API
-            "groq": "pending"  # TODO: Check Groq API
+            "database": db_status,
+            "google_calendar": "not_configured",
+            "groq": "not_configured"
         }
     })
 

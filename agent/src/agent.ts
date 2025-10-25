@@ -6,6 +6,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
+import { createIntentDetector, type IntentResult } from './lib/intent-detection';
 
 interface AgentState {
   conversationHistory: Message[];
@@ -18,6 +19,7 @@ interface Message {
   content: string;
   timestamp: number;
   intent?: string;
+  messageSid?: string; // Twilio message identifier
 }
 
 interface AppointmentContext {
@@ -60,8 +62,11 @@ export class SmartSaludAgent extends DurableObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    // Extract path after /agent/
+    const path = url.pathname.replace(/^\/agent\//, '/');
+
     // Agent info endpoint
-    if (url.pathname === '/info') {
+    if (path === '/info' || path === '//info') {
       return new Response(JSON.stringify({
         conversationCount: this.state.conversationHistory.length,
         pendingAppointments: this.state.pendingAppointments.size,
@@ -71,40 +76,74 @@ export class SmartSaludAgent extends DurableObject {
       });
     }
 
-    // Handle message endpoint (for testing)
-    if (url.pathname === '/message' && request.method === 'POST') {
-      const { from, message } = await request.json() as { from: string; message: string };
-      const response = await this.handleMessage(from, message);
+    // Handle message endpoint (for testing and WhatsApp webhook)
+    if ((path === '/message' || path === '//message') && request.method === 'POST') {
+      const body = await request.json() as { from: string; message: string; messageSid?: string };
+      const response = await this.handleMessage(body.from, body.message, body.messageSid);
       return new Response(JSON.stringify(response), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    return new Response('Method not allowed', { status: 405 });
+    return new Response(JSON.stringify({
+      error: 'Method not allowed',
+      path: path,
+      pathname: url.pathname
+    }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   /**
    * Core message handling with multi-model intent detection
    */
-  private async handleMessage(from: string, message: string): Promise<any> {
+  private async handleMessage(from: string, message: string, messageSid?: string): Promise<any> {
     // Store in conversation history
-    this.state.conversationHistory.push({
+    const msg: Message = {
       from,
       content: message,
-      timestamp: Date.now()
-    });
+      timestamp: Date.now(),
+      messageSid
+    };
 
-    // TODO: Implement multi-model intent detection
-    // 1. Try Groq (primary)
-    // 2. Fallback to Workers AI
-    // 3. Last resort: regex patterns
+    // Detect intent using multi-model fallback
+    const intentDetector = createIntentDetector(this.env);
+    const intentResult: IntentResult = await intentDetector.detect(message);
+
+    msg.intent = intentResult.intent;
+    this.state.conversationHistory.push(msg);
+
+    console.log(`Intent detected: ${intentResult.intent} via ${intentResult.method} (confidence: ${intentResult.confidence})`);
+
+    // Generate appropriate response based on intent
+    let responseMessage = '';
+    switch (intentResult.intent) {
+      case 'confirm':
+        responseMessage = '✅ Perfecto! Tu cita ha sido confirmada. Te esperamos.';
+        // TODO: Update appointment status in backend
+        break;
+      case 'cancel':
+        responseMessage = 'Entiendo que necesitas cancelar. Déjame buscar alternativas para ti...';
+        // TODO: Trigger rescheduling workflow
+        break;
+      case 'reschedule':
+        responseMessage = 'Claro, te ayudo a cambiar la fecha. Déjame verificar disponibilidad...';
+        // TODO: Query calendar and offer alternatives
+        break;
+      default:
+        responseMessage = 'Gracias por tu mensaje. ¿Podrías confirmar si deseas mantener o cancelar tu cita?';
+    }
 
     // Persist state
     await this.ctx.storage.put('state', this.state);
 
     return {
       success: true,
-      response: 'Message received - full implementation coming soon'
+      intent: intentResult.intent,
+      confidence: intentResult.confidence,
+      method: intentResult.method,
+      response: responseMessage
     };
   }
 
@@ -125,45 +164,11 @@ export class SmartSaludAgent extends DurableObject {
 
   /**
    * Multi-model intent detection with graceful fallback
+   * NOTE: Now using centralized IntentDetector from lib/intent-detection.ts
    */
   private async detectIntent(message: string): Promise<string> {
-    try {
-      // Primary: Groq
-      return await this.groqIntentDetection(message);
-    } catch (error) {
-      try {
-        // Fallback: Workers AI
-        return await this.workersAIIntentDetection(message);
-      } catch (error) {
-        // Last resort: Regex patterns
-        return this.regexIntentDetection(message);
-      }
-    }
-  }
-
-  private async groqIntentDetection(message: string): Promise<string> {
-    // TODO: Implement Groq API call
-    throw new Error('Not implemented');
-  }
-
-  private async workersAIIntentDetection(message: string): Promise<string> {
-    // TODO: Implement Workers AI call
-    throw new Error('Not implemented');
-  }
-
-  private regexIntentDetection(message: string): string {
-    const lower = message.toLowerCase();
-
-    if (/(confirmar|confirm|sí|si|yes)/i.test(lower)) {
-      return 'confirm';
-    }
-    if (/(cancelar|cancel|no)/i.test(lower)) {
-      return 'cancel';
-    }
-    if (/(cambiar|reagendar|reschedule|move)/i.test(lower)) {
-      return 'reschedule';
-    }
-
-    return 'unknown';
+    const intentDetector = createIntentDetector(this.env);
+    const result = await intentDetector.detect(message);
+    return result.intent;
   }
 }

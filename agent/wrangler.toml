@@ -1,6 +1,15 @@
 name = "smartsalud-agent"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Scheduled worker - runs every hour for 48h appointment reminders
+[triggers]
+crons = ["0 * * * *"]
+
+# Workers AI binding (for fallback intent detection)
+[ai]
+binding = "AI"
 
 # Durable Objects
 [[durable_objects.bindings]]
@@ -15,6 +24,12 @@ new_classes = ["SmartSaludAgent"]
 [vars]
 BACKEND_API_URL = "https://smartsalud-api.railway.app"
 ENVIRONMENT = "production"
+
+# Secrets (set via: wrangler secret put <KEY_NAME>)
+# GROQ_API_KEY - for primary intent detection
+# TWILIO_ACCOUNT_SID - for WhatsApp messaging
+# TWILIO_AUTH_TOKEN - for Twilio auth
+# TWILIO_WHATSAPP_NUMBER - format: whatsapp:+14155238886
 
 # Staging environment
 [env.staging]
