@@ -1,0 +1,27 @@
+{
+  "name": "smartsalud-agent",
+  "version": "0.1.0",
+  "description": "Cloudflare Agent for smartSalud appointment management",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "agents": "latest"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.0",
+    "wrangler": "^3.90.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

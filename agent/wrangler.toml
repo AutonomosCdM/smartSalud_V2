@@ -1,0 +1,27 @@
+name = "smartsalud-agent"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Durable Objects
+[[durable_objects.bindings]]
+name = "AGENT"
+class_name = "SmartSaludAgent"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SmartSaludAgent"]
+
+# Environment variables (non-secret)
+[vars]
+BACKEND_API_URL = "https://smartsalud-api.railway.app"
+ENVIRONMENT = "production"
+
+# Staging environment
+[env.staging]
+name = "smartsalud-agent-staging"
+vars = { BACKEND_API_URL = "https://smartsalud-staging.railway.app", ENVIRONMENT = "staging" }
+
+# Development environment
+[env.dev]
+name = "smartsalud-agent-dev"
+vars = { BACKEND_API_URL = "http://localhost:8000", ENVIRONMENT = "development" }
