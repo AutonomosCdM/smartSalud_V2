@@ -95,23 +95,39 @@ Detecta citas próximas → Envía WhatsApp PROACTIVO
 
 ---
 
-### Fase 1: Scheduled Proactive Agent (45 min)
+### Fase 1: Scheduled Proactive Agent ✅ COMPLETADA
 **Agente:** full-stack-dev
+**Tiempo real:** 45 min
+**Status:** 100% Complete
 
 **Objetivo:** Worker que detecta citas 48h antes y envía WhatsApp proactivo
 
-**Tasks:**
-1. Scheduled worker con cron trigger `0 * * * *` (cada hora)
-2. Query DB: `WHERE status='PENDING' AND appointment_date BETWEEN now()+47h AND now()+49h`
-3. Para cada cita → Send WhatsApp con Twilio interactive buttons
-4. Multi-model intent detection si responde (Groq → Workers AI → Regex)
+**Implementaciones completadas:**
+1. ✅ Scheduled worker con cron trigger `0 * * * *` (cada hora)
+2. ✅ Query DB: `GET /api/appointments/upcoming?hours=48`
+3. ✅ Para cada cita → Send WhatsApp con Twilio interactive buttons
+4. ✅ Multi-model intent detection (Groq → Workers AI → Regex)
+5. ✅ WhatsApp webhook handler (`POST /webhook/whatsapp`)
+6. ✅ Durable Object state persistence
+7. ✅ Database migrations + seed data
+8. ✅ FastAPI CRUD endpoints
 
-**Verificación:**
-- Cron ejecuta cada hora ✓
-- WhatsApp con botones [Confirmar] [Cancelar] llega ✓
-- Intent detection funciona cuando responde ✓
+**Verificación (PASSED):**
+- ✅ Cron configurado en wrangler.toml
+- ✅ WhatsApp messages con formato profesional + botones
+- ✅ Intent detection funciona (3 niveles de fallback)
+- ✅ Webhook handler recibe respuestas de pacientes
+- ✅ State persiste entre mensajes
 
-**Code location:** `src/workers/scheduled-reminders.ts`
+**Code locations:**
+- Scheduled worker: [agent/src/workers/scheduled-reminders.ts](../agent/src/workers/scheduled-reminders.ts)
+- Intent detection: [agent/src/lib/intent-detection.ts](../agent/src/lib/intent-detection.ts)
+- WhatsApp integration: [agent/src/integrations/twilio-whatsapp.ts](../agent/src/integrations/twilio-whatsapp.ts)
+- Webhook handler: [agent/src/index.ts:49-109](../agent/src/index.ts#L49)
+- Backend endpoints: [backend/app/routers/appointments.py](../backend/app/routers/appointments.py)
+- Database models: [backend/app/models/](../backend/app/models/)
+
+**Evidence:** See [agent/PHASE0-1-EVIDENCE.md](../agent/PHASE0-1-EVIDENCE.md)
 
 ---
 
@@ -238,16 +254,16 @@ Detecta citas próximas → Envía WhatsApp PROACTIVO
 
 ## TIMELINE
 
-| Fase | Tiempo | Agente | Output |
-|------|--------|--------|--------|
-| 0: Setup | 15 min | Manual | Project running |
-| 1: Scheduled Agent | 45 min | full-stack-dev | Proactive WhatsApp |
-| 2: Durable Workflow | 45 min | full-stack-dev | 8-step flow |
-| 3: Mobile Dashboard | 30 min | full-stack-dev | Real-time UI |
-| 4: Human Escalation | 20 min | full-stack-dev | Staff intervention |
-| 5: Calendar Sync | 30 min | full-stack-dev | Bidirectional sync |
-| 6: Testing | 15 min | debugger | All tests pass |
-| **TOTAL** | **~3h** | 5 agents | Full system |
+| Fase | Tiempo | Agente | Output | Status |
+|------|--------|--------|--------|--------|
+| 0: Setup | 15 min | Manual | Project running | ✅ COMPLETE |
+| 1: Scheduled Agent | 45 min | full-stack-dev | Proactive WhatsApp | ✅ COMPLETE |
+| 2: Durable Workflow | 45 min | full-stack-dev | 8-step flow | 🔄 NEXT |
+| 3: Mobile Dashboard | 30 min | full-stack-dev | Real-time UI | ⏸️ Pending |
+| 4: Human Escalation | 20 min | full-stack-dev | Staff intervention | ⏸️ Pending |
+| 5: Calendar Sync | 30 min | full-stack-dev | Bidirectional sync | ⏸️ Pending |
+| 6: Testing | 15 min | debugger | All tests pass | ⏸️ Pending |
+| **TOTAL** | **~3h** | 5 agents | Full system | **33% Complete** |
 
 ## DEMO SCRIPT (5 min para jueces)
 
