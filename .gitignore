@@ -67,6 +67,9 @@ service-account.json
 client_secret_*.json
 smartsalud-*.json
 
+# Deployment docs with secrets
+agent/DEPLOYMENT.md
+
 # Local development
 .claude/history.jsonl
 .claude/debug/
